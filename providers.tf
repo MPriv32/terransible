@@ -8,5 +8,6 @@ terraform {
 
 provider "aws" {
   region = "us-west-2"
-  shared_credentials_file="/home/ubuntu/.aws/configure"
-}
+  access_key = "AKIA3JBZOU527CPH4RO5"
+  secret_key = "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"
+  }
