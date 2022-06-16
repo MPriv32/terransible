@@ -68,12 +68,12 @@ resource "aws_instance" "main_ec2" {
 #   }
 # }
 
-# resource "null_resource" "grafana_install" {
-#   depends_on = [
-#     aws_instance.main_ec2
-#   ]
-#   provisioner "local-exec" {
-#     command = "ansible-playbook -i aws_hosts --key-file /home/ubuntu/.ssh/mtckey playbooks/main-playbook.yml"
-#   }
-# }
+resource "null_resource" "grafana_install" {
+  depends_on = [
+    aws_instance.main_ec2
+  ]
+  provisioner "local-exec" {
+    command = "ansible-playbook -i aws_hosts --key-file /home/ubuntu/.ssh/mtckey playbooks/main-playbook.yml"
+  }
+}
 
