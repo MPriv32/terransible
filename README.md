@@ -76,27 +76,18 @@ access_token = os.getenv("GITHUB_ACCESS_TOKEN")
 g = Github(access_token)
 ```
 
-Now it's time for the heart of the application, the functions that make it all work. The first function has the task of checking the repository's merge settings- are merge commits allowed? is squash merging allowed? rebase and merging? That's what this function will find out for us adn return either a ```True``` or ```False```:
+Now it's time for the heart of the application, the functions that make it all work. The first function has the task of checking the repository's merge settings- are merge commits allowed? is squash merging allowed? rebase and merging? That's what this function will find out for us and return either a ```True``` or ```False``` as a key-value pair and add it to a list:
 
 ```
 def repo_merge_strategies(repo):
     #Check if merge commits are allowed
-    if repo.allow_merge_commit == True:
-        print("Merge commits are allowed!")
-    else:
-        print("Merge commits aren't allowed.")
+    list.append({'Merge Commits': repo.allow_merge_commit})
 
     #Check if squash merging is allowed
-    if repo.allow_squash_merge == True:
-        print("Squash merging is allowed!")
-    else:
-        print("Squash merging isn't allowed.")
+    list.append({'Squash Merging': repo.allow_squash_merge})
 
     #Check if rebase and merging is allowed
-    if repo.allow_rebase_merge == True:
-        print("Rebase and merge is allowed!")
-    else:
-        print("Rebase and merge isn't allowed.")
+    list.append({'Rebase and Merging': repo.allow_rebase_merge})
 ```
 
 The second function has the task of checking if auto head branch deletion protuction is enabled. This function is separate from the other function, mainly because the first function only requires the name of a repository to run. The second function, needs the repository name and the name of the head branch, which is "main" in this case.
@@ -109,7 +100,7 @@ def auto_delete_enabled(branch):
         print("Auto delete head branch is enabled.") 
 ```
 
-The final piece to the application is the **for loop** that runs each function using each repository name from out list of repositories. In this function, we assign the value **repo** to our repo name, **branch** which is a combination of the repo name and the head branch "main". Then it runs both functions with the appropriate values as inputs.
+Now we implement the **for loop** that runs each function with every repo from the list of repositories. In this function, we assign the value **repo** to our repo name, **branch** which is a combination of the repo name and the head branch "main". Then it runs both functions with the appropriate values as inputs.
 
 ```
 for repo in repo_list:
@@ -117,6 +108,15 @@ for repo in repo_list:
     branch = repo.get_branch("main")
     repo_merge_strategies(repo)
     auto_delete_enabled(branch) 
+```
+
+Lastly, we convert our list of values into json and export it to a json file:
+
+```
+jsonData = json.dumps(list)
+with open('repos.json', 'w', newline='') as outfile:
+    outfile.write(jsonData)
+print(jsonData)
 ```
 
 Running the application is simple: Create a DynamoDB table with the primary key of ```repo``` and the items can be repository names. Configure your environment variables and run the application- very minimal changes are required if you'd rather pass in the list of repositories using a different method.
