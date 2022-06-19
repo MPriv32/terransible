@@ -122,3 +122,102 @@ for repo in repo_list:
 Running the application is simple: Create a DynamoDB table with the primary key of ```repo``` and the items can be repository names. Configure your environment variables and run the application- very minimal changes are required if you'd rather pass in the list of repositories using a different method.
 
 ### Passing in a list of repos
+
+The chosen way to pass in the list of repos was via a database, as it's a a common way to pass in data to an application. I considered setting up the application to take in a list of repos via a json file, but this wouldn't be logical if we decided to deploy the application to multiple instances. It's far easier to manage one database that every instance pulls from, as opposed to having to manage the data on each individual instance.
+
+### Passing in application configuration
+
+The configuration for this application is passed in via environment variables, as this is a flexible way to pass in application configuration. Environment variables can be passed in locally from a .env file, they can be passed in from the CLI- such as when deploying to Lambda or EKS. They can be passed in when deploying the infrastructure through IaC services like Terraform, configuration files for kubernetes etc.
+
+### Deploying to Lambda
+
+For deploying the application to Lambda, there's only one change that needs to be made to the application code itself- the **for loop** needs to be wrapped in a handler function for lambda. Here's an example of that
+
+```
+def handler (event, context):  
+    #Loop through list of repos
+    for repo in repo_list:
+        repo = g.get_repo(repo)
+        branch = repo.get_branch("main")
+        repo_merge_strategies(repo)
+        auto_delete_enabled(branch)
+
+handler(None, None)
+```
+
+Most of the changes or additions need to happen from outside the application. A great way to get started with deploying the application to Lambda is to start in the CLI.
+
+First, we'll need a repository to store the image and **ECR** is a simple way to do so. Using the AWS CLI run the ensuing command (all CLI examples come directly from the AWS docs):
+
+```
+aws ecr create-repository \
+    --repository-name TackleTakeHome \
+    --image-scanning-configuration scanOnPush=true \
+    --region us-west-2
+```
+After creating the repository, we need to build and push a docker image to it, so creating a docker image would be a good start. Here's the ```Dockerfile``` required to get the application up and running on Lambda:
+
+```
+FROM amazon/aws-lambda-python:3.8
+
+# Copy function code
+COPY app.py ${LAMBDA_TASK_ROOT}
+
+#Copy and install requirements
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+RUN pip install -r requirements.txt
+
+ARG GITHUB_ACCESS_TOKEN
+ARG TABLE_NAME
+
+ENV GITHUB_ACCESS_TOKEN $GITHUB_ACCESS_TOKEN
+ENV TABLE_NAME $TABLE_NAME
+
+# Set the CMD to the handler 
+CMD [ "app.handler" ]
+```
+
+After doing this, run the following commands to build, tag and push your image to ECR:
+
+Start by authenticating Docker with your registry
+
+```aws ecr get-login-password --region region | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<region>.amazonaws.com``` 
+
+Building the image
+
+```docker build -t TackleTakeHome .```
+
+Tagging the image
+
+```docker tag TackleTakeHome:latest <aws_account_id>.dkr.ecr.<region>.amazonaws.com/TackleTakeHome:latest```
+
+Pushing the image
+
+```docker push <aws_account_id>.dkr.ecr.<region>.amazonaws.com/TackleTakeHome:latest```
+
+Now that the application is on ECR, we just need to create a Lambda function from the image.
+**Note:** The Lambda functions needs certain permissions to run this application, it needs an IAM role with ```AmazonDynamoDBReadOnlyAccess``` and ```AWSLambdaBasicExecutionRole``` permissions. This allows the app to send logs to cloudwatch and to scan the DynamoDB table.
+
+Once the Lambda function is created, we just need to pass in a couple of the environment variables from the CLI. You can do so from running 
+
+```
+aws lambda update-function-configuration --function-name my-function \
+    --environment "Variables={BUCKET=my-bucket,KEY=file.txt}"
+```
+You can replace these environment variables with the ones we used in our ```.env``` file.
+
+## Deploying to EKS
+
+If we choose to deploy to EKS, no changes need to be made to the original code that we first created. Only some minor changes need to be made to the ```Dockerfile```.
+We no longer need to copy our application to ```${LAMBDA_TASK_ROOT}``` we can copy it to whatever directory we want and changed the **CMD** from ```CMD [ "app.handler" ]``` to ```CMD ["python", "app.py"]```
+
+After those changes are made, we can repeat the previous steps to build, tag and push it to ECR. 
+
+Being that it's an API, we have two options of running the appliation on EKs: we can run it once as a **batch job**, or run it periodically as a **CRON job**.
+This should be taken into consideration when creating the Kubernetes manifests for the cluster.
+
+## Considerations for passing credentials and storing artifacts
+
+As per the AWS docs, the best way to pass crfedentials to your application is by using temporary credentials with STS. Another option, however, is to use AWS Secrets Manager. AWS Secrets Manager will automatically rotate your keys and allows you to easily manage your secrets from one central location, that can easily be replicated across regions. 
+
+Two common ways to store build artifacts include S3 or AWS CodeArtifact. AWS CodeArtifact is just an AWS managed service that uses S3 and DynamoDB as it's backend. Choosing between the two depends on how much configuration, operational overhead and financial overhead you're willing to allocate.
