@@ -25,12 +25,14 @@ In ``` app.py ``` , we'll import the required modules for this application
 ```
 from github import Github
 import os
-import boto3 
+import botocore
+import boto3
+import json
 ```
 
 We use the **github** module in order to make api calls to the GitHub API. This is how we scan a repository for certain attributes, such as the merge and auto-delete configurations.
 The **os** module is used to pass in environment variables for our application- which we use for passing in credentials and application configuration, locally.
-**Boto3** is the offical AWS SDK to create, configure and manage AWS services. We use this to run a table scan on our DynamoDB table.
+**Boto3** is the offical AWS SDK to create, configure and manage AWS services. We use this to run a table scan on our DynamoDB table. **botocore** is used for handling boto3 errors. **json** is used for writing our data into json.
 
 Now, it's time to pass in those environment variables. For simplicity, you can create a ```.env``` file in the same directory as ```app.py``` and implement this code to the application.
 
