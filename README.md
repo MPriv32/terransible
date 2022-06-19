@@ -66,9 +66,14 @@ Back to our application in ```app.py``` we need to assign a value to ```boto3.re
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(TABLE_NAME)
 
-response = table.scan()
-data = response['Items']
-repo_list = [x.get("repo") for x in data]
+try:    
+    response = table.scan()
+    data = response['Items']
+except botocore.exceptions.ClientError as error:
+    print(error)
+
+finally: 
+    repo_list = [x.get("repo") for x in data]
 ```
 
 For the final step of authorization, we need to authorize with ```github``` using a personal access token with the appropriate permissions.
